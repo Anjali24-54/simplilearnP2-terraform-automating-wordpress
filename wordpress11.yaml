@@ -1,0 +1,189 @@
+- name: Install LAMP Stack and WordPress
+
+  hosts: all
+
+  become: yes
+
+
+
+  vars_files:
+
+    - vars.yaml
+
+
+
+  tasks:
+
+    - name: Update apt cache
+
+      apt:
+
+        update_cache: yes
+
+
+
+    - name: Install required packages
+
+      apt:
+
+        name:
+
+          - apache2
+
+          - mysql-server
+
+          - php-fpm
+
+          - php-mysql
+
+          - python3-pymysql
+
+          - unzip
+
+
+
+
+
+    - name: Set MySQL root password
+
+      debconf:
+
+        name: mysql-server
+
+        question: mysql-server/root_password
+
+        value: "{{ mysql_root_password }}"
+
+        vtype: password
+
+
+
+    - name: Install WordPress
+
+      get_url:
+
+        url: "http://wordpress.org/latest.zip"
+
+        dest: "/tmp/wordpress.zip"
+
+
+
+    - name: Extract WordPress
+
+      unarchive:
+
+        src: "/tmp/wordpress.zip"
+
+        dest: "/var/www/html"
+
+        remote_src: yes
+
+
+
+    - name: Configure WordPress database
+
+      mysql_db:
+
+        name: wordpress
+
+        state: present
+
+        login_user: root
+
+        login_password: "{{ mysql_root_password }}"
+
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+
+
+    - name: Create MySQL user for WordPress
+
+      mysql_user:
+
+        name: wordpress_user
+
+        password: "{{ wordpress_db_password }}"
+
+        priv: "wordpress.*:ALL"
+
+        state: present
+
+        login_user: root
+
+        login_password: "{{ mysql_root_password }}"
+
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+
+
+    - name: Enable Apache rewrite module
+
+      apache2_module:
+
+        name: rewrite
+
+        state: present
+
+
+
+    - name: Enable Apache proxy_fcgi module
+
+      command: a2enmod proxy_fcgi
+
+      become: yes
+
+      notify:
+
+        - Restart Apache
+
+
+
+    - name: Enable PHP-FPM for Apache
+
+      command: a2enconf php8.1-fpm
+
+      become: yes
+
+      notify:
+
+        - Restart Apache
+
+
+
+    - name: Create Apache VirtualHost for WordPress
+
+      template:
+
+        src: wordpress11.conf.j2
+
+        dest: /etc/apache2/sites-available/wordpress.conf
+
+      notify:
+
+        - Restart Apache
+
+
+
+    - name: Enable Apache VirtualHost for WordPress
+
+      command:
+
+        cmd: a2ensite wordpress
+
+      become: yes
+
+      notify:
+
+        - Restart Apache
+
+
+
+  handlers:
+
+    - name: Restart Apache
+
+      service:
+
+        name: apache2
+
+        state: restarted

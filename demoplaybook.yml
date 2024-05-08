@@ -1,0 +1,7 @@
+---
+- hosts: all
+  tasks:
+    - name: copy task
+      copy:
+        content: "Hello from Ansible - via Terraform"
+        dest: /home/ubuntu/output.txt
